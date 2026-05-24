@@ -1,84 +1,132 @@
 import os
 import requests
+from bs4 import BeautifulSoup
 
 # =====================
-# ENV VARIABLES (GitHub Actions secrets)
+# ENV
 # =====================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-
-# =====================
-# DEBUG
-# =====================
 print("BOT STARTED")
 print("TOKEN OK:", bool(BOT_TOKEN))
 print("CHAT_ID:", CHAT_ID)
 
 
 # =====================
-# TELEGRAM SEND (FIXED - NO LIBRARY)
+# TELEGRAM
 # =====================
 def send_message(text: str):
-    if not BOT_TOKEN or not CHAT_ID:
-        raise Exception("Missing BOT_TOKEN or CHAT_ID")
-
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-    response = requests.post(url, data={
+    r = requests.post(url, data={
         "chat_id": CHAT_ID,
         "text": text
     })
 
-    print("TELEGRAM RESPONSE:", response.text)
+    print("TELEGRAM RESPONSE:", r.text)
 
 
 # =====================
-# SCRAPER (TEMP TEST DATA)
+# 1. NAJDI SÚŤAŽ
 # =====================
-def get_sklabina_data():
-    print("FETCHING DATA...")
+def find_competition():
+    url = "https://sportnet.sme.sk/futbalnet/s/"
+    r = requests.get(url)
+    soup = BeautifulSoup(r.text, "html.parser")
 
-    # TEMP DATA (kým nenapojíme Sportnet)
-    match = "TJ Družstevník Sklabiná - TEST"
-    result = "TEST 3:0"
+    links = soup.find_all("a")
 
-    table = [
-        "1. TJ Slovan Tomášovce 19 17 1 1 89:18 52b",
-        "2. Sklabiná 19 12 3 4 40:20 39b"
-    ]
+    for a in links:
+        text = a.text.strip()
 
-    return match, result, table
+        if "Sklabiná" in text:
+            href = a.get("href")
+            if href:
+                full_url = "https://sportnet.sme.sk" + href
+                print("FOUND COMPETITION:", full_url)
+                return full_url
+
+    print("Competition not found")
+    return None
 
 
 # =====================
-# MAIN LOGIC
+# 2. POSLEDNÝ ZÁPAS (HEURISTIKA)
+# =====================
+def get_last_finished_match(url):
+    try:
+        r = requests.get(url)
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        text = soup.get_text(" ", strip=True)
+
+        # jednoduchá heuristika
+        if "Koniec" in text:
+            print("MATCH FOUND (Koniec exists)")
+            return "Posledný odohraný zápas nájdený (Koniec)"
+
+        return "Žiadny ukončený zápas nenájdený"
+
+    except Exception as e:
+        return f"Error match parsing: {e}"
+
+
+# =====================
+# 3. TABUĽKA (robustná verzia)
+# =====================
+def get_table(url):
+    try:
+        r = requests.get(url)
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        rows = soup.find_all("tr")
+
+        table = []
+
+        for row in rows:
+            cols = row.find_all("td")
+            if len(cols) >= 6:
+                row_text = " ".join(c.text.strip() for c in cols[:6])
+                table.append(row_text)
+
+        if not table:
+            return ["Tabuľka sa nepodarila načítať"]
+
+        return table[:10]
+
+    except Exception as e:
+        return [f"Error table: {e}"]
+
+
+# =====================
+# MAIN
 # =====================
 def main():
-    match, result, table = get_sklabina_data()
+    print("SCRAPING START")
 
-    print("MATCH:", match)
-    print("RESULT:", result)
+    comp_url = find_competition()
 
-    text = f"""
+    if not comp_url:
+        send_message("❌ Sklabiná súťaž sa nenašla")
+        return
+
+    match = get_last_finished_match(comp_url)
+    table = get_table(comp_url + "/tabulky/")
+
+    message = f"""
 ⚽ Sklabiná report
 
 📅 Zápas:
 {match}
-
-📊 Výsledok:
-{result}
 
 🏆 Tabuľka:
 {chr(10).join(table)}
 """
 
     print("SENDING MESSAGE...")
-    send_message(text)
+    send_message(message)
 
 
-# =====================
-# ENTRY POINT
-# =====================
 if __name__ == "__main__":
     main()
