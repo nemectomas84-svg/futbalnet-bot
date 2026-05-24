@@ -1,6 +1,5 @@
 import os
 import requests
-import re
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
@@ -9,9 +8,8 @@ CHAT_ID = os.getenv("CHAT_ID")
 def send_message(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-    # 🔥 LIMIT (Telegram max ~4096)
     if len(text) > 4000:
-        text = text[:4000] + "\n\n...skrátené"
+        text = text[:4000]
 
     r = requests.post(url, data={
         "chat_id": CHAT_ID,
@@ -21,59 +19,55 @@ def send_message(text):
     print("TELEGRAM:", r.text)
 
 
-def get_page():
-    url = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/vysledky/"
+def get_matches():
+    url = "https://sportnet.sme.sk/api/matches?competition=ssfz-vi-liga"
 
     try:
-        r = requests.get(url, timeout=10)
-        print("PAGE STATUS:", r.status_code)
-        return r.text
-    except Exception as e:
-        print("PAGE ERROR:", e)
+        r = requests.get(url)
+        return r.json()
+    except:
         return None
-
-
-def extract_info(html):
-    if not html:
-        return "❌ Nepodarilo sa načítať stránku", []
-
-    # ak stránka používa JS
-    if "Sklabin" not in html:
-        return "⚠️ Sklabiná sa nenašla (JS stránka)", []
-
-    lines = html.splitlines()
-
-    match = "❌ Zápas nenájdený"
-    table = []
-
-    for line in lines:
-        if "Sklabin" in line:
-            clean = re.sub("<.*?>", "", line).strip()
-
-            # zápas
-            if ":" in clean and len(clean) < 100:
-                match = clean
-
-            # tabuľka riadky
-            if len(clean) > 5:
-                table.append(clean)
-
-    return match, table[:5]  # 🔥 max 5 riadkov
 
 
 def main():
     try:
-        html = get_page()
+        data = get_matches()
 
-        match, table = extract_info(html)
+        if not data:
+            send_message("❌ Dáta sa nepodarilo načítať")
+            return
+
+        matches = data.get("matches", [])
+
+        skl_match = None
+
+        for m in matches:
+            home = m.get("homeTeam", {}).get("name", "")
+            away = m.get("awayTeam", {}).get("name", "")
+
+            if "Sklabin" in home or "Sklabin" in away:
+                skl_match = m
+                break
+
+        if not skl_match:
+            send_message("❌ Sklabiná zápas sa nenašiel")
+            return
+
+        home = skl_match["homeTeam"]["name"]
+        away = skl_match["awayTeam"]["name"]
+        score = skl_match.get("score", "N/A")
+        status = skl_match.get("status", "N/A")
 
         message = f"""⚽ Sklabiná report
 
 📅 Zápas:
-{match}
+{home} - {away}
 
-🏆 Tabuľka:
-{chr(10).join(table) if table else "❌ Nedostupná"}
+📊 Výsledok:
+{score}
+
+📌 Stav:
+{status}
 """
 
         send_message(message)
