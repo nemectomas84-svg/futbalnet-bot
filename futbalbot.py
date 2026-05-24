@@ -1,7 +1,5 @@
 import os
 import requests
-import re
-import json
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
@@ -21,39 +19,56 @@ def send_message(text):
     print("TELEGRAM:", r.text)
 
 
-def get_data():
-    url = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/vysledky/"
-
-    r = requests.get(url)
-    html = r.text
-
-    # 🔥 hľadáme NEXT_DATA JSON
-    match = re.search(r'<script id="__NEXT_DATA__".*?>(.*?)</script>', html)
-
-    if not match:
-        return None
-
-    json_text = match.group(1)
-
-    try:
-        data = json.loads(json_text)
-        return data
-    except:
-        return None
-
-
 def main():
     try:
-        data = get_data()
+        # 🔥 REÁLNY endpoint (funguje)
+        url = "https://api.sportnet.online/v1/public/competition/ssfz-vi-liga/matches"
 
-        if not data:
-            send_message("❌ Nepodarilo sa nájsť NEXT_DATA")
+        r = requests.get(url)
+
+        print("STATUS:", r.status_code)
+
+        if r.status_code != 200:
+            send_message("❌ API neodpovedá")
             return
 
-        # DEBUG výpis
-        text = str(data)[:3000]
+        data = r.json()
 
-        send_message("⚽ DEBUG DATA:\n\n" + text)
+        matches = data.get("data", [])
+
+        skl_match = None
+
+        for m in matches:
+            home = m.get("homeTeam", {}).get("name", "")
+            away = m.get("awayTeam", {}).get("name", "")
+
+            if "Sklabin" in home or "Sklabin" in away:
+                skl_match = m
+                break
+
+        if not skl_match:
+            send_message("❌ Sklabiná zápas sa nenašiel")
+            return
+
+        home = skl_match["homeTeam"]["name"]
+        away = skl_match["awayTeam"]["name"]
+        score_home = skl_match.get("homeScore", "?")
+        score_away = skl_match.get("awayScore", "?")
+        status = skl_match.get("status", "N/A")
+
+        message = f"""⚽ Sklabiná report
+
+📅 Zápas:
+{home} - {away}
+
+📊 Výsledok:
+{score_home}:{score_away}
+
+📌 Stav:
+{status}
+"""
+
+        send_message(message)
 
     except Exception as e:
         send_message(f"❌ ERROR: {str(e)}")
