@@ -1,59 +1,31 @@
 import os
 import asyncio
-from playwright.async_api import async_playwright
 import requests
+
+print("BOT STARTED")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-URL = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/vysledky/"
+print("ENV OK:", bool(BOT_TOKEN), bool(CHAT_ID))
 
 
 def send(msg):
-    requests.post(
+    print("SENDING:", msg)
+    r = requests.post(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
         data={"chat_id": CHAT_ID, "text": msg}
     )
-
-
-async def get_data():
-    async with async_playwright() as p:
-        browser = await p.chromium.launch()
-        page = await browser.new_page()
-
-        await page.goto(URL)
-        await page.wait_for_timeout(5000)  # počká na JS load
-
-        content = await page.content()
-        await browser.close()
-
-        return content
-
-
-def extract(html):
-    # jednoduché hľadanie (robustné)
-    if "Sklabin" not in html:
-        return None
-
-    lines = html.split("\n")
-
-    for i, line in enumerate(lines):
-        if "Sklabin" in line:
-            return line.strip()
-
-    return None
+    print("TELEGRAM RESPONSE:", r.text)
 
 
 async def main():
-    html = await get_data()
+    print("ASYNC START")
 
-    match = extract(html)
+    # 🔥 TEST BEZ PLAYWRIGHT
+    send("⚽ TEST BOT FUNGUJE")
 
-    if not match:
-        send("❌ Sklabiná sa nenašla")
-        return
-
-    send(f"⚽ Sklabiná report\n\n📅 Zápas:\n{match}")
+    print("DONE")
 
 
 if __name__ == "__main__":
