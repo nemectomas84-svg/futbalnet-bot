@@ -19,18 +19,40 @@ def send(msg):
 
 
 def extract_blocks(text):
-    """
-    Nájde Sklabiná a zoberie okolie textu (kontext zápasu)
-    """
     lines = [l.strip() for l in text.split("\n") if l.strip()]
     results = []
 
     for i, line in enumerate(lines):
         if "Sklabin" in line:
-            block = lines[max(0, i - 3): i + 6]
 
-            cleaned = " | ".join(block)
-            results.append(cleaned)
+            block = lines[max(0, i - 4): i + 6]
+
+            # odstránenie duplicít
+            unique = []
+            for b in block:
+                if b not in unique:
+                    unique.append(b)
+
+            try:
+                kolo = next((x for x in unique if "kolo" in x), "")
+                datum = next((x for x in unique if ":" in x and "." in x), "")
+                status = next((x for x in unique if x in ["Koniec", "LIVE", "Koniec zápasu"]), "")
+
+                teams = [x for x in unique if "Sklabin" in x or "TJ" in x]
+
+                score_nums = [x for x in unique if x.isdigit()]
+
+                score = ""
+                if len(score_nums) >= 2:
+                    score = f"{score_nums[0]}:{score_nums[1]}"
+
+                match_line = f"{kolo} | {datum} | {status}\n"
+                match_line += f"{teams[0]} {score} {teams[1]}"
+
+                results.append(match_line)
+
+            except:
+                results.append(" | ".join(unique))
 
     return results
 
@@ -48,7 +70,6 @@ async def main():
         print("WAITING FOR RENDER...")
         await page.wait_for_timeout(10000)
 
-        # 🔥 najst reálny text z DOM (nie HTML)
         text = await page.evaluate("document.body.innerText")
 
         print("TEXT LENGTH:", len(text))
@@ -61,7 +82,7 @@ async def main():
         blocks = extract_blocks(text)
 
         if not blocks:
-            send("❌ Sklabiná existuje, ale neviem vybrať zápas")
+            send("❌ Sklabiná existuje, ale nepodarilo sa spracovať")
             await browser.close()
             return
 
