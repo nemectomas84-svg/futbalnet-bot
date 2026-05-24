@@ -1,54 +1,38 @@
 import requests
-from bs4 import BeautifulSoup
-from datetime import datetime
+import re
 
 BOT_TOKEN = "TOKEN"
 CHAT_ID = "CHAT_ID"
 
-URL_RESULTS = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/vysledky/"
-URL_PROGRAM = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/program/"
+URL = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/vysledky/"
 
 def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
-def get_last_match():
-    r = requests.get(URL_RESULTS)
-    soup = BeautifulSoup(r.text, "html.parser")
-
-    text = soup.get_text("\n")
-
-    lines = [l.strip() for l in text.split("\n") if "Sklabiná" in l]
-
-    return lines[0] if lines else None
-
-
-def get_next_match():
-    r = requests.get(URL_PROGRAM)
-    soup = BeautifulSoup(r.text, "html.parser")
-
-    text = soup.get_text("\n")
-
-    lines = [l.strip() for l in text.split("\n") if "Sklabiná" in l]
-
-    return lines[0] if lines else None
-
 
 def main():
-    last = get_last_match()
-    next_match = get_next_match()
+    r = requests.get(URL)
+    html = r.text
 
-    msg = "⚽ Sklabiná report\n\n"
+    # 🔥 nájdi všetky riadky obsahujúce Sklabiná (aj v HTML)
+    matches = re.findall(r'.{0,80}Sklabiná.{0,80}', html)
 
-    if next_match:
-        msg += f"📅 Najbližší zápas:\n{next_match}\n\n"
-    else:
-        msg += "📅 Najbližší zápas: nenájdený\n\n"
+    if not matches:
+        send("❌ Sklabiná sa nenašla (stránka je JS / dynamická)")
+        return
 
-    if last:
-        msg += f"📊 Posledný výsledok:\n{last}"
-    else:
-        msg += "📊 Posledný výsledok: nenájdený"
+    # vyber prvý relevantný výskyt
+    result = matches[0]
+
+    # očistenie HTML tagov
+    result = re.sub('<.*?>', '', result)
+
+    msg = f"""⚽ Sklabiná report
+
+📊 Nález:
+{result.strip()}
+"""
 
     send(msg)
 
