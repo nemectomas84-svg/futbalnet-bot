@@ -1,11 +1,11 @@
 name: Sklabina Bot
 
 on:
-  schedule:
-    - cron: "0 18 * * 6"  # sobota 20:00 CET (UTC +2)
-    - cron: "0 18 * * 0"  # nedeľa 20:00 CET (UTC +2)
   workflow_dispatch:
-
+  schedule:
+    - cron: "0 18 * * 6"
+    - cron: "0 18 * * 0"
+    
 jobs:
   run-bot:
     runs-on: ubuntu-latest
