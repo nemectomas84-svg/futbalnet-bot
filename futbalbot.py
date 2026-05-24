@@ -1,5 +1,7 @@
 import os
 import requests
+import re
+import json
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
@@ -19,58 +21,39 @@ def send_message(text):
     print("TELEGRAM:", r.text)
 
 
-def get_matches():
-    url = "https://sportnet.sme.sk/api/matches?competition=ssfz-vi-liga"
+def get_data():
+    url = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/vysledky/"
+
+    r = requests.get(url)
+    html = r.text
+
+    # 🔥 hľadáme NEXT_DATA JSON
+    match = re.search(r'<script id="__NEXT_DATA__".*?>(.*?)</script>', html)
+
+    if not match:
+        return None
+
+    json_text = match.group(1)
 
     try:
-        r = requests.get(url)
-        return r.json()
+        data = json.loads(json_text)
+        return data
     except:
         return None
 
 
 def main():
     try:
-        data = get_matches()
+        data = get_data()
 
         if not data:
-            send_message("❌ Dáta sa nepodarilo načítať")
+            send_message("❌ Nepodarilo sa nájsť NEXT_DATA")
             return
 
-        matches = data.get("matches", [])
+        # DEBUG výpis
+        text = str(data)[:3000]
 
-        skl_match = None
-
-        for m in matches:
-            home = m.get("homeTeam", {}).get("name", "")
-            away = m.get("awayTeam", {}).get("name", "")
-
-            if "Sklabin" in home or "Sklabin" in away:
-                skl_match = m
-                break
-
-        if not skl_match:
-            send_message("❌ Sklabiná zápas sa nenašiel")
-            return
-
-        home = skl_match["homeTeam"]["name"]
-        away = skl_match["awayTeam"]["name"]
-        score = skl_match.get("score", "N/A")
-        status = skl_match.get("status", "N/A")
-
-        message = f"""⚽ Sklabiná report
-
-📅 Zápas:
-{home} - {away}
-
-📊 Výsledok:
-{score}
-
-📌 Stav:
-{status}
-"""
-
-        send_message(message)
+        send_message("⚽ DEBUG DATA:\n\n" + text)
 
     except Exception as e:
         send_message(f"❌ ERROR: {str(e)}")
