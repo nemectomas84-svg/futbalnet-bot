@@ -1,37 +1,69 @@
+import os
 import requests
-import re
+from datetime import datetime
 
-BOT_TOKEN = "TOKEN"
-CHAT_ID = "CHAT_ID"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
-URL = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/vysledky/"
+COMPETITION_ID = "vi-liga-ssfz"
+
 
 def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
 
+def get_matches():
+    url = f"https://api.sportnet.online/v1/public/competitions/{COMPETITION_ID}/matches"
+    r = requests.get(url)
+    print("STATUS:", r.status_code)
+
+    if r.status_code != 200:
+        return None
+
+    return r.json()
+
+
+def find_sklabina(matches):
+    for m in matches.get("matches", []):
+        home = m.get("homeTeam", {}).get("name", "")
+        away = m.get("awayTeam", {}).get("name", "")
+
+        if "Sklabin" in home or "Sklabin" in away:
+            return m
+    return None
+
+
 def main():
-    r = requests.get(URL)
-    html = r.text
+    data = get_matches()
 
-    # 🔥 nájdi všetky riadky obsahujúce Sklabiná (aj v HTML)
-    matches = re.findall(r'.{0,80}Sklabiná.{0,80}', html)
-
-    if not matches:
-        send("❌ Sklabiná sa nenašla (stránka je JS / dynamická)")
+    if not data:
+        send("❌ API nedostupné")
         return
 
-    # vyber prvý relevantný výskyt
-    result = matches[0]
+    match = find_sklabina(data)
 
-    # očistenie HTML tagov
-    result = re.sub('<.*?>', '', result)
+    if not match:
+        send("❌ Sklabiná zápas sa nenašiel")
+        return
+
+    home = match["homeTeam"]["name"]
+    away = match["awayTeam"]["name"]
+
+    score = match.get("score")
+
+    if score:
+        result = f'{score.get("home")}:{score.get("away")}'
+    else:
+        result = "ešte sa nehralo"
 
     msg = f"""⚽ Sklabiná report
 
-📊 Nález:
-{result.strip()}
+📅 Zápas:
+{home} - {away}
+
+📊 Výsledok:
+{result}
 """
 
     send(msg)
