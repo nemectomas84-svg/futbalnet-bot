@@ -10,29 +10,62 @@ URL = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/vysledky/"
 
 
 def send(msg):
-    requests.post(
+    print("SENDING MESSAGE...")
+    r = requests.post(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
         data={"chat_id": CHAT_ID, "text": msg}
     )
+    print("TELEGRAM RESPONSE:", r.text)
+
+
+def extract_blocks(text):
+    """
+    Nájde Sklabiná a zoberie okolie textu (kontext zápasu)
+    """
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+    results = []
+
+    for i, line in enumerate(lines):
+        if "Sklabin" in line:
+            block = lines[max(0, i - 3): i + 6]
+
+            cleaned = " | ".join(block)
+            results.append(cleaned)
+
+    return results
 
 
 async def main():
+    print("BOT STARTED")
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
-        await page.goto(URL, wait_until="networkidle")
-        await page.wait_for_timeout(8000)
+        print("OPENING PAGE...")
+        await page.goto(URL, wait_until="domcontentloaded")
 
+        print("WAITING FOR RENDER...")
+        await page.wait_for_timeout(10000)
+
+        # 🔥 najst reálny text z DOM (nie HTML)
         text = await page.evaluate("document.body.innerText")
+
+        print("TEXT LENGTH:", len(text))
 
         if "Sklabin" not in text:
             send("❌ Sklabiná sa nenašla")
+            await browser.close()
             return
 
-        lines = [l for l in text.split("\n") if "Sklabin" in l]
+        blocks = extract_blocks(text)
 
-        msg = "⚽ Sklabiná report\n\n" + "\n".join(lines[:10])
+        if not blocks:
+            send("❌ Sklabiná existuje, ale neviem vybrať zápas")
+            await browser.close()
+            return
+
+        msg = "⚽ Sklabiná report\n\n" + "\n\n".join(blocks[:5])
 
         send(msg)
 
