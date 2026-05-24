@@ -9,6 +9,10 @@ CHAT_ID = os.getenv("CHAT_ID")
 def send_message(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
+    # 🔥 LIMIT (Telegram max ~4096)
+    if len(text) > 4000:
+        text = text[:4000] + "\n\n...skrátené"
+
     r = requests.post(url, data={
         "chat_id": CHAT_ID,
         "text": text
@@ -33,11 +37,10 @@ def extract_info(html):
     if not html:
         return "❌ Nepodarilo sa načítať stránku", []
 
-    # fallback – len info že stránka existuje
+    # ak stránka používa JS
     if "Sklabin" not in html:
-        return "⚠️ Sklabiná sa nenašla v HTML (JS stránka)", []
+        return "⚠️ Sklabiná sa nenašla (JS stránka)", []
 
-    # jednoduchý pokus
     lines = html.splitlines()
 
     match = "❌ Zápas nenájdený"
@@ -47,13 +50,15 @@ def extract_info(html):
         if "Sklabin" in line:
             clean = re.sub("<.*?>", "", line).strip()
 
-            if ":" in clean and "Koniec" in clean:
+            # zápas
+            if ":" in clean and len(clean) < 100:
                 match = clean
 
+            # tabuľka riadky
             if len(clean) > 5:
                 table.append(clean)
 
-    return match, table[:5]
+    return match, table[:5]  # 🔥 max 5 riadkov
 
 
 def main():
@@ -62,8 +67,7 @@ def main():
 
         match, table = extract_info(html)
 
-        message = f"""
-⚽ Sklabiná report
+        message = f"""⚽ Sklabiná report
 
 📅 Zápas:
 {match}
