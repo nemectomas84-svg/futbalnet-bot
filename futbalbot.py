@@ -2,9 +2,13 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from telegram import Bot
+from dotenv import load_dotenv
+import os
 
-BOT_TOKEN = "SEM_DAJ_TOKEN"
-CHAT_ID = "SEM_DAJ_CHAT_ID"
+load_dotenv()
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
 bot = Bot(token=BOT_TOKEN)
 
