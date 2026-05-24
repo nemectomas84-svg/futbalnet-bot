@@ -1,41 +1,56 @@
-import os
 import requests
+from bs4 import BeautifulSoup
+from datetime import datetime
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+BOT_TOKEN = "TOKEN"
+CHAT_ID = "CHAT_ID"
 
+URL_RESULTS = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/vysledky/"
+URL_PROGRAM = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/program/"
 
-def send_message(text):
+def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
-    r = requests.post(url, data={
-        "chat_id": CHAT_ID,
-        "text": text
-    })
+def get_last_match():
+    r = requests.get(URL_RESULTS)
+    soup = BeautifulSoup(r.text, "html.parser")
 
-    print("TELEGRAM:", r.text)
+    text = soup.get_text("\n")
+
+    lines = [l.strip() for l in text.split("\n") if "Sklabiná" in l]
+
+    return lines[0] if lines else None
+
+
+def get_next_match():
+    r = requests.get(URL_PROGRAM)
+    soup = BeautifulSoup(r.text, "html.parser")
+
+    text = soup.get_text("\n")
+
+    lines = [l.strip() for l in text.split("\n") if "Sklabiná" in l]
+
+    return lines[0] if lines else None
 
 
 def main():
-    match = "TJ Družstevník Sklabiná - Súper"
-    result = "3:1"
-    table = [
-        "1. Tím A 52b",
-        "2. Sklabiná 39b",
-        "3. Tím C 35b"
-    ]
+    last = get_last_match()
+    next_match = get_next_match()
 
-    message = (
-        "⚽ Sklabiná report\n\n"
-        "📅 Zápas:\n"
-        f"{match}\n\n"
-        "📊 Výsledok:\n"
-        f"{result}\n\n"
-        "🏆 Tabuľka:\n"
-        + "\n".join(table)
-    )
+    msg = "⚽ Sklabiná report\n\n"
 
-    send_message(message)
+    if next_match:
+        msg += f"📅 Najbližší zápas:\n{next_match}\n\n"
+    else:
+        msg += "📅 Najbližší zápas: nenájdený\n\n"
+
+    if last:
+        msg += f"📊 Posledný výsledok:\n{last}"
+    else:
+        msg += "📊 Posledný výsledok: nenájdený"
+
+    send(msg)
 
 
 if __name__ == "__main__":
