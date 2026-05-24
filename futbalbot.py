@@ -17,8 +17,6 @@ def send_message(text):
 
 
 def main():
-    # 🔥 TU SI BUDEŠ MENIŤ VÝSLEDOK (alebo neskôr napojíme API)
-    
     match = "TJ Družstevník Sklabiná - Súper"
     result = "3:1"
     table = [
@@ -27,17 +25,15 @@ def main():
         "3. Tím C 35b"
     ]
 
-    message = f"""⚽ Sklabiná report
-
-📅 Zápas:
-{match}
-
-📊 Výsledok:
-{result}
-
-🏆 Tabuľka:
-{chr(10).join(table)}
-"""
+    message = (
+        "⚽ Sklabiná report\n\n"
+        "📅 Zápas:\n"
+        f"{match}\n\n"
+        "📊 Výsledok:\n"
+        f"{result}\n\n"
+        "🏆 Tabuľka:\n"
+        + "\n".join(table)
+    )
 
     send_message(message)
 
