@@ -14,7 +14,7 @@ print("CHAT_ID:", CHAT_ID)
 
 
 # =====================
-# TELEGRAM
+# TELEGRAM SEND
 # =====================
 def send_message(text: str):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -28,9 +28,9 @@ def send_message(text: str):
 
 
 # =====================
-# 1. NAJDI SÚŤAŽ
+# 1. NAJDI KLUB SKLABINÁ
 # =====================
-def find_competition():
+def find_sklabina_team():
     url = "https://sportnet.sme.sk/futbalnet/s/"
     r = requests.get(url)
     soup = BeautifulSoup(r.text, "html.parser")
@@ -39,15 +39,14 @@ def find_competition():
 
     for a in links:
         text = a.text.strip()
+        href = a.get("href", "")
 
-        if "Sklabiná" in text:
-            href = a.get("href")
-            if href:
-                full_url = "https://sportnet.sme.sk" + href
-                print("FOUND COMPETITION:", full_url)
-                return full_url
+        if "Sklabiná" in text and href:
+            full_url = "https://sportnet.sme.sk" + href
+            print("FOUND TEAM:", full_url)
+            return full_url
 
-    print("Competition not found")
+    print("Sklabiná NOT FOUND")
     return None
 
 
@@ -61,10 +60,8 @@ def get_last_finished_match(url):
 
         text = soup.get_text(" ", strip=True)
 
-        # jednoduchá heuristika
         if "Koniec" in text:
-            print("MATCH FOUND (Koniec exists)")
-            return "Posledný odohraný zápas nájdený (Koniec)"
+            return "Posledný odohraný zápas (nájdený status: Koniec)"
 
         return "Žiadny ukončený zápas nenájdený"
 
@@ -73,7 +70,7 @@ def get_last_finished_match(url):
 
 
 # =====================
-# 3. TABUĽKA (robustná verzia)
+# 3. TABUĽKA (basic parser)
 # =====================
 def get_table(url):
     try:
@@ -86,6 +83,7 @@ def get_table(url):
 
         for row in rows:
             cols = row.find_all("td")
+
             if len(cols) >= 6:
                 row_text = " ".join(c.text.strip() for c in cols[:6])
                 table.append(row_text)
@@ -105,14 +103,17 @@ def get_table(url):
 def main():
     print("SCRAPING START")
 
-    comp_url = find_competition()
+    team_url = find_sklabina_team()
 
-    if not comp_url:
-        send_message("❌ Sklabiná súťaž sa nenašla")
+    if not team_url:
+        send_message("❌ Sklabiná klub sa nenašiel")
         return
 
-    match = get_last_finished_match(comp_url)
-    table = get_table(comp_url + "/tabulky/")
+    print("TEAM URL:", team_url)
+
+    match = get_last_finished_match(team_url)
+
+    table = get_table(team_url + "/tabulky/")
 
     message = f"""
 ⚽ Sklabiná report
