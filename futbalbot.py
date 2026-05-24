@@ -24,10 +24,8 @@ def extract_blocks(text):
 
     for i, line in enumerate(lines):
         if "Sklabin" in line:
-
             block = lines[max(0, i - 4): i + 6]
 
-            # odstránenie duplicít
             unique = []
             for b in block:
                 if b not in unique:
@@ -41,13 +39,14 @@ def extract_blocks(text):
                 teams = [x for x in unique if "Sklabin" in x or "TJ" in x]
 
                 score_nums = [x for x in unique if x.isdigit()]
-
                 score = ""
                 if len(score_nums) >= 2:
                     score = f"{score_nums[0]}:{score_nums[1]}"
 
-                match_line = f"{kolo} | {datum} | {status}\n"
-                match_line += f"{teams[0]} {score} {teams[1]}"
+                match_line = (
+                    f"{kolo} | {datum} | {status}\n"
+                    f"{teams[0]} {score} {teams[1]}"
+                )
 
                 results.append(match_line)
 
@@ -74,6 +73,9 @@ async def main():
 
         print("TEXT LENGTH:", len(text))
 
+        # -------------------------
+        # ZÁPASY
+        # -------------------------
         if "Sklabin" not in text:
             send("❌ Sklabiná sa nenašla")
             await browser.close()
@@ -81,14 +83,35 @@ async def main():
 
         blocks = extract_blocks(text)
 
+        # -------------------------
+        # TABUĽKA
+        # -------------------------
+        table_text = ""
+
+        try:
+            rows = await page.query_selector_all("table tbody tr")
+
+            for r in rows[:10]:
+                row = await r.inner_text()
+                table_text += row + "\n"
+
+        except:
+            table_text = "Tabuľka nedostupná"
+
+        # -------------------------
+        # SPRÁVA
+        # -------------------------
         if not blocks:
             send("❌ Sklabiná existuje, ale nepodarilo sa spracovať")
-            await browser.close()
-            return
+        else:
+            msg = (
+                "⚽ Sklabiná report\n\n"
+                + "\n\n".join(blocks[:5])
+                + "\n\n🏆 Tabuľka:\n"
+                + table_text.strip()
+            )
 
-        msg = "⚽ Sklabiná report\n\n" + "\n\n".join(blocks[:5])
-
-        send(msg)
+            send(msg)
 
         await browser.close()
 
