@@ -1,16 +1,15 @@
 import os
 import requests
-from telegram import Bot
 
 # =====================
-# ENV VARIABLES
+# ENV VARIABLES (GitHub Actions secrets)
 # =====================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 
 # =====================
-# DEBUG INFO
+# DEBUG
 # =====================
 print("BOT STARTED")
 print("TOKEN OK:", bool(BOT_TOKEN))
@@ -18,25 +17,29 @@ print("CHAT_ID:", CHAT_ID)
 
 
 # =====================
-# TELEGRAM FUNCTION
+# TELEGRAM SEND (FIXED - NO LIBRARY)
 # =====================
 def send_message(text: str):
     if not BOT_TOKEN or not CHAT_ID:
         raise Exception("Missing BOT_TOKEN or CHAT_ID")
 
-    bot = Bot(token=BOT_TOKEN)
-    bot.send_message(chat_id=CHAT_ID, text=text)
-    print("MESSAGE SENT")
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+
+    response = requests.post(url, data={
+        "chat_id": CHAT_ID,
+        "text": text
+    })
+
+    print("TELEGRAM RESPONSE:", response.text)
 
 
 # =====================
-# SCRAPER PLACEHOLDER
-# (sem potom dáme Sportnet logiku)
+# SCRAPER (TEMP TEST DATA)
 # =====================
 def get_sklabina_data():
     print("FETCHING DATA...")
 
-    # TEMP TEST DATA (aby si videl že bot funguje)
+    # TEMP DATA (kým nenapojíme Sportnet)
     match = "TJ Družstevník Sklabiná - TEST"
     result = "TEST 3:0"
 
@@ -57,8 +60,8 @@ def main():
     print("MATCH:", match)
     print("RESULT:", result)
 
-    message = f"""
-⚽ *Sklabiná report*
+    text = f"""
+⚽ Sklabiná report
 
 📅 Zápas:
 {match}
@@ -71,8 +74,11 @@ def main():
 """
 
     print("SENDING MESSAGE...")
-    send_message(message)
+    send_message(text)
 
 
+# =====================
+# ENTRY POINT
+# =====================
 if __name__ == "__main__":
     main()
