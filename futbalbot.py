@@ -115,5 +115,16 @@ def main():
     save_match(match_text)
 
 
-if __name__ == "__main__":
+import time
+
+def run():
     main()
+
+if __name__ == "__main__":
+    while True:
+        try:
+            run()
+        except Exception as e:
+            print("ERROR:", e)
+
+        time.sleep(60 * 60 * 6)  # každých 6 hodín
