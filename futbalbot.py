@@ -1,73 +1,60 @@
 import os
+import asyncio
+from playwright.async_api import async_playwright
 import requests
-from datetime import datetime
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-COMPETITION_ID = "vi-liga-ssfz"
+URL = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/vysledky/"
 
 
 def send(msg):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+    requests.post(
+        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+        data={"chat_id": CHAT_ID, "text": msg}
+    )
 
 
-def get_matches():
-    url = f"https://api.sportnet.online/v1/public/competitions/{COMPETITION_ID}/matches"
-    r = requests.get(url)
-    print("STATUS:", r.status_code)
+async def get_data():
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page()
 
-    if r.status_code != 200:
+        await page.goto(URL)
+        await page.wait_for_timeout(5000)  # počká na JS load
+
+        content = await page.content()
+        await browser.close()
+
+        return content
+
+
+def extract(html):
+    # jednoduché hľadanie (robustné)
+    if "Sklabin" not in html:
         return None
 
-    return r.json()
+    lines = html.split("\n")
 
+    for i, line in enumerate(lines):
+        if "Sklabin" in line:
+            return line.strip()
 
-def find_sklabina(matches):
-    for m in matches.get("matches", []):
-        home = m.get("homeTeam", {}).get("name", "")
-        away = m.get("awayTeam", {}).get("name", "")
-
-        if "Sklabin" in home or "Sklabin" in away:
-            return m
     return None
 
 
-def main():
-    data = get_matches()
+async def main():
+    html = await get_data()
 
-    if not data:
-        send("❌ API nedostupné")
-        return
-
-    match = find_sklabina(data)
+    match = extract(html)
 
     if not match:
-        send("❌ Sklabiná zápas sa nenašiel")
+        send("❌ Sklabiná sa nenašla")
         return
 
-    home = match["homeTeam"]["name"]
-    away = match["awayTeam"]["name"]
-
-    score = match.get("score")
-
-    if score:
-        result = f'{score.get("home")}:{score.get("away")}'
-    else:
-        result = "ešte sa nehralo"
-
-    msg = f"""⚽ Sklabiná report
-
-📅 Zápas:
-{home} - {away}
-
-📊 Výsledok:
-{result}
-"""
-
-    send(msg)
+    send(f"⚽ Sklabiná report\n\n📅 Zápas:\n{match}")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
