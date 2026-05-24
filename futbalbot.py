@@ -1,102 +1,62 @@
 import os
 import requests
+import re
 
-# =====================
-# ENV
-# =====================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-print("BOT STARTED")
-
-
-# =====================
-# TELEGRAM
-# =====================
 def send_message(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-
-    r = requests.post(url, data={
-        "chat_id": CHAT_ID,
-        "text": text
-    })
-
-    print("TELEGRAM:", r.text)
+    requests.post(url, data={"chat_id": CHAT_ID, "text": text})
 
 
-# =====================
-# API (natvrdo – funguje)
-# =====================
-API_URL = "https://sportnet.sme.sk/api/competition/2458/results"
-TABLE_URL = "https://sportnet.sme.sk/api/competition/2458/table"
+def get_page():
+    url = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/vysledky/"
+    r = requests.get(url)
+    return r.text
 
 
-# =====================
-# GET LAST MATCH
-# =====================
-def get_last_match():
-    try:
-        r = requests.get(API_URL)
-        data = r.json()
+def extract_match(html):
+    # nájdi riadok kde je Sklabiná
+    lines = html.splitlines()
 
-        for match in data.get("matches", []):
-            home = match.get("homeTeam", {}).get("name", "")
-            away = match.get("awayTeam", {}).get("name", "")
-            status = match.get("status", "")
-            score = match.get("score", "")
+    for line in lines:
+        if "Sklabin" in line and "Koniec" in line:
+            clean = re.sub("<.*?>", "", line)
+            return clean.strip()
 
-            if "Sklabin" in home or "Sklabin" in away:
-                if status == "FINISHED":
-                    return f"{home} - {away}\n{score}"
-
-        return "Zápas nenájdený"
-
-    except Exception as e:
-        print("MATCH ERROR:", e)
-        return "Chyba pri zápase"
+    return "Zápas Sklabine nenájdený"
 
 
-# =====================
-# TABLE
-# =====================
-def get_table():
-    try:
-        r = requests.get(TABLE_URL)
-        data = r.json()
+def extract_table(html):
+    table = []
+    lines = html.splitlines()
 
-        table = []
+    for line in lines:
+        if "Sklabin" in line:
+            clean = re.sub("<.*?>", "", line)
+            table.append(clean.strip())
 
-        for team in data.get("table", []):
-            name = team.get("team", {}).get("name", "")
-            points = team.get("points", "")
-
-            table.append(f"{name} {points}b")
-
-        return table[:10]
-
-    except Exception as e:
-        print("TABLE ERROR:", e)
-        return []
+    return table[:5]
 
 
-# =====================
-# MAIN
-# =====================
 def main():
-    match = get_last_match()
-    table = get_table()
+    html = get_page()
 
-    message = f"""
+    match = extract_match(html)
+    table = extract_table(html)
+
+    msg = f"""
 ⚽ Sklabiná report
 
 📅 Zápas:
 {match}
 
 🏆 Tabuľka:
-{chr(10).join(table) if table else "Tabuľka nedostupná"}
+{chr(10).join(table) if table else "Nenájdená"}
 """
 
-    send_message(message)
+    send_message(msg)
 
 
 if __name__ == "__main__":
