@@ -1,117 +1,78 @@
-import requests
-from bs4 import BeautifulSoup
-from datetime import datetime
-from telegram import Bot
-from dotenv import load_dotenv
 import os
+import requests
+from telegram import Bot
 
-
+# =====================
+# ENV VARIABLES
+# =====================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-bot = Bot(token=BOT_TOKEN)
 
-URL_FEED = "https://sportnet.sme.sk/futbalnet/s/"
-URL_TABLE = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/tabulky/"
-
-LAST_MATCH_FILE = "last_match.txt"
-
-
-def get_page(url):
-    return requests.get(url).text
+# =====================
+# DEBUG INFO
+# =====================
+print("BOT STARTED")
+print("TOKEN OK:", bool(BOT_TOKEN))
+print("CHAT_ID:", CHAT_ID)
 
 
-def find_sklabina_match(html):
-    soup = BeautifulSoup(html, "html.parser")
+# =====================
+# TELEGRAM FUNCTION
+# =====================
+def send_message(text: str):
+    if not BOT_TOKEN or not CHAT_ID:
+        raise Exception("Missing BOT_TOKEN or CHAT_ID")
 
-    matches = soup.find_all("a")
-
-    for m in matches:
-        text = m.get_text()
-
-        if "Sklabiná" in text and "Koniec" in text:
-            link = m.get("href")
-            return text.strip(), "https://sportnet.sme.sk" + link
-
-    return None, None
+    bot = Bot(token=BOT_TOKEN)
+    bot.send_message(chat_id=CHAT_ID, text=text)
+    print("MESSAGE SENT")
 
 
-def was_sent(match_text):
-    try:
-        with open(LAST_MATCH_FILE, "r") as f:
-            return f.read() == match_text
-    except:
-        return False
+# =====================
+# SCRAPER PLACEHOLDER
+# (sem potom dáme Sportnet logiku)
+# =====================
+def get_sklabina_data():
+    print("FETCHING DATA...")
+
+    # TEMP TEST DATA (aby si videl že bot funguje)
+    match = "TJ Družstevník Sklabiná - TEST"
+    result = "TEST 3:0"
+
+    table = [
+        "1. TJ Slovan Tomášovce 19 17 1 1 89:18 52b",
+        "2. Sklabiná 19 12 3 4 40:20 39b"
+    ]
+
+    return match, result, table
 
 
-def save_match(match_text):
-    with open(LAST_MATCH_FILE, "w") as f:
-        f.write(match_text)
-
-
-def get_table():
-    html = get_page(URL_TABLE)
-    soup = BeautifulSoup(html, "html.parser")
-
-    rows = soup.find_all("tr")
-
-    table = []
-
-    for row in rows[1:]:
-        cols = [c.get_text(strip=True) for c in row.find_all("td")]
-
-        if len(cols) < 8:
-            continue
-
-        pos = cols[0]
-        team = cols[1]
-        played = cols[2]
-        wins = cols[3]
-        draws = cols[4]
-        losses = cols[5]
-        score = cols[6]
-        points = cols[7]
-
-        line = f"{pos}. {team} {played} {wins} {draws} {losses} {score} {points}b"
-
-        if "Sklabiná" in team:
-            line = f"{pos}. **{team}** {played} {wins} {draws} {losses} {score} {points}b"
-
-        table.append(line)
-
-    return "\n".join(table)
-
-
-def send_message(text):
-    bot.send_message(chat_id=CHAT_ID, text=text, parse_mode="Markdown")
-
-
+# =====================
+# MAIN LOGIC
+# =====================
 def main():
-    html = get_page(URL_FEED)
+    match, result, table = get_sklabina_data()
 
-    match_text, link = find_sklabina_match(html)
+    print("MATCH:", match)
+    print("RESULT:", result)
 
-    if not match_text:
-        print("Ziadny zapas")
-        return
+    message = f"""
+⚽ *Sklabiná report*
 
-    if was_sent(match_text):
-        print("Uz odoslany")
-        return
+📅 Zápas:
+{match}
 
-    table = get_table()
+📊 Výsledok:
+{result}
 
-    message = f"""⚽ Sklabiná – posledný zápas
-
-{match_text}
-
-📊 Tabuľka:
-
-{table}
+🏆 Tabuľka:
+{chr(10).join(table)}
 """
 
+    print("SENDING MESSAGE...")
     send_message(message)
-    save_match(match_text)
+
 
 if __name__ == "__main__":
     main()
