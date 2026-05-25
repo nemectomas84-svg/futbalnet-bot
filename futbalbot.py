@@ -1,7 +1,6 @@
 import os
 import asyncio
 import requests
-import re
 from playwright.async_api import async_playwright
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -11,42 +10,10 @@ URL = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/vysledky/"
 
 
 def send(msg):
-    r = requests.post(
+    requests.post(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
         data={"chat_id": CHAT_ID, "text": msg}
     )
-    print(r.text)
-
-
-def extract_matches(html):
-    results = []
-
-    # nájde bloky zápasov
-    matches = re.findall(
-        r"(\\d{2}\\.\\d{2}\\.\\s*\\d{2}:\\d{2}.*?TJ Družstevník Sklabiná.*?)(\\d+:\\d+)",
-        html,
-        re.DOTALL
-    )
-
-    for block, score in matches:
-
-        # tímy
-        teams = re.findall(r"TJ [A-Za-zÁ-ž ]+", block)
-
-        if len(teams) >= 2:
-            # dátum
-            date_match = re.search(r"\\d{2}\\.\\d{2}\\.\\s*\\d{2}:\\d{2}", block)
-            date = date_match.group(0) if date_match else ""
-
-            # status
-            status = "Koniec" if "Koniec" in block else ""
-
-            results.append(
-                f"{date} | {status}\n"
-                f"{teams[0]} {score} {teams[1]}"
-            )
-
-    return list(dict.fromkeys(results))
 
 
 async def main():
@@ -55,16 +22,42 @@ async def main():
         page = await browser.new_page()
 
         await page.goto(URL)
-        await page.wait_for_timeout(10000)
 
-        html = await page.content()
+        # 🔥 počkaj kým sa načítajú zápasy
+        await page.wait_for_selector("div.match, div[class*=match]", timeout=15000)
 
-        matches = extract_matches(html)
+        matches = await page.query_selector_all("div.match, div[class*=match]")
 
-        if not matches:
+        results = []
+
+        for match in matches:
+            text = await match.inner_text()
+
+            if "Sklabin" in text:
+                lines = [l.strip() for l in text.split("\n") if l.strip()]
+
+                # očakávaná štruktúra:
+                # dátum
+                # status
+                # tím1
+                # skóre
+                # tím2
+
+                if len(lines) >= 5:
+                    date = lines[0]
+                    status = lines[1]
+                    team1 = lines[2]
+                    score = lines[3]
+                    team2 = lines[4]
+
+                    results.append(
+                        f"{date} | {status}\n{team1} {score} {team2}"
+                    )
+
+        if not results:
             send("❌ Sklabiná sa nenašla")
         else:
-            msg = "⚽ Sklabiná report\n\n" + "\n\n".join(matches[:2])
+            msg = "⚽ Sklabiná report\n\n" + "\n\n".join(results[:2])
             send(msg)
 
         await browser.close()
