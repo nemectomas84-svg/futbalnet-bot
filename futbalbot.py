@@ -30,9 +30,9 @@ def format_matches(lines):
         line = lines[i]
 
         if "Sklabin" in line:
-            block = lines[i:i+10]
+            block = lines[i:i+12]
 
-            # dátum + čas (napr. 24.05. 15:00)
+            # dátum + čas
             date = next((l for l in block if "." in l and ":" in l), "")
 
             # status
@@ -41,11 +41,13 @@ def format_matches(lines):
             # tímy
             teams = [l for l in block if "TJ" in l]
 
-            # skóre (iba X:Y kde sú čísla)
-            score = next(
-                (l for l in block if ":" in l and l.replace(":", "").isdigit()),
-                "N/A"
-            )
+            # 🔥 skóre ako 2 čísla (napr. "2" a "1")
+            numbers = [l for l in block if l.isdigit()]
+
+            if len(numbers) >= 2:
+                score = f"{numbers[0]}:{numbers[1]}"
+            else:
+                score = "N/A"
 
             if len(teams) >= 2:
                 results.append(
@@ -53,7 +55,7 @@ def format_matches(lines):
                     f"{teams[0]} {score} {teams[1]}"
                 )
 
-            i += 10
+            i += 12
         else:
             i += 1
 
