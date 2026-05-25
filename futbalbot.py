@@ -26,20 +26,24 @@ def extract_matches(text):
         if "Sklabin" in lines[i]:
 
             block = lines[max(0, i-3):i+5]
-
             joined = " | ".join(block)
 
-            # 🎯 PRESNÉ SKÓRE (len formát X:Y)
-            score_match = re.search(r"\b\d{1,2}:\d{1,2}\b", joined)
-            score = score_match.group(0) if score_match else "?"
+            # 🎯 SKÓRE (ignoruje čas typu 15:00)
+            score = "N/A"
+            all_scores = re.findall(r"\b(\d{1,2}):(\d{1,2})\b", joined)
 
-            # dátum
+            for a, b in all_scores:
+                if int(a) <= 10 and int(b) <= 10:
+                    score = f"{a}:{b}"
+                    break
+
+            # 📅 dátum
             date = next((x for x in block if "." in x and ":" in x), "")
 
-            # status
+            # ⏱ status
             status = next((x for x in block if "Koniec" in x or "LIVE" in x), "")
 
-            # tímy
+            # 🏟 tímy
             teams = [x for x in block if "TJ" in x]
 
             if len(teams) >= 2:
@@ -49,26 +53,8 @@ def extract_matches(text):
                 )
                 results.append(match)
 
-    return list(dict.fromkeys(results))  # remove duplicates
-
-
-def extract_table(text):
-    lines = [l.strip() for l in text.split("\n") if l.strip()]
-
-    table = []
-    start = False
-
-    for l in lines:
-        if "Tabuľka" in l:
-            start = True
-            continue
-
-        if start:
-            if len(table) > 10:
-                break
-            table.append(l)
-
-    return "\n".join(table)
+    # odstráni duplicity
+    return list(dict.fromkeys(results))
 
 
 async def main():
@@ -82,19 +68,11 @@ async def main():
         text = await page.evaluate("document.body.innerText")
 
         matches = extract_matches(text)
-        table = extract_table(text)
 
         if not matches:
             send("❌ Sklabiná sa nenašla")
         else:
-            msg = (
-                "⚽ Sklabiná report\n\n"
-                + "\n\n".join(matches[:3])
-            )
-
-            if table:
-                msg += "\n\n🏆 Tabuľka:\n" + table
-
+            msg = "⚽ Sklabiná report\n\n" + "\n\n".join(matches[:2])
             send(msg)
 
         await browser.close()
