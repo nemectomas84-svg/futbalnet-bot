@@ -10,54 +10,80 @@ URL = "https://sportnet.sme.sk/futbalnet/z/ssfz/s/vi-liga-ssfz/vysledky/"
 
 
 def send(msg):
-    requests.post(
+    print("SENDING MESSAGE...")
+    r = requests.post(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
         data={"chat_id": CHAT_ID, "text": msg}
     )
+    print("TELEGRAM RESPONSE:", r.text)
+
+
+def clean_lines(text):
+    return [l.strip() for l in text.split("\n") if l.strip()]
+
+
+def format_matches(lines):
+    results = []
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+
+        if "Sklabin" in line:
+            block = lines[i:i+10]
+
+            # dátum + čas (napr. 24.05. 15:00)
+            date = next((l for l in block if "." in l and ":" in l), "")
+
+            # status
+            status = "Koniec" if any("Koniec" in l for l in block) else ""
+
+            # tímy
+            teams = [l for l in block if "TJ" in l]
+
+            # skóre (iba X:Y kde sú čísla)
+            score = next(
+                (l for l in block if ":" in l and l.replace(":", "").isdigit()),
+                "N/A"
+            )
+
+            if len(teams) >= 2:
+                results.append(
+                    f"{date} | {status}\n"
+                    f"{teams[0]} {score} {teams[1]}"
+                )
+
+            i += 10
+        else:
+            i += 1
+
+    # odstráni duplicity
+    return list(dict.fromkeys(results))
 
 
 async def main():
+    print("BOT STARTED")
+
     async with async_playwright() as p:
-        browser = await p.chromium.launch()
+        browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
-        await page.goto(URL)
+        print("OPENING PAGE...")
+        await page.goto(URL, wait_until="networkidle")
 
-        # 🔥 počkaj kým sa načítajú zápasy
-        await page.wait_for_selector("div.match, div[class*=match]", timeout=15000)
+        print("WAITING FOR DATA...")
+        await page.wait_for_timeout(8000)
 
-        matches = await page.query_selector_all("div.match, div[class*=match]")
+        text = await page.evaluate("document.body.innerText")
 
-        results = []
+        lines = clean_lines(text)
 
-        for match in matches:
-            text = await match.inner_text()
+        matches = format_matches(lines)
 
-            if "Sklabin" in text:
-                lines = [l.strip() for l in text.split("\n") if l.strip()]
-
-                # očakávaná štruktúra:
-                # dátum
-                # status
-                # tím1
-                # skóre
-                # tím2
-
-                if len(lines) >= 5:
-                    date = lines[0]
-                    status = lines[1]
-                    team1 = lines[2]
-                    score = lines[3]
-                    team2 = lines[4]
-
-                    results.append(
-                        f"{date} | {status}\n{team1} {score} {team2}"
-                    )
-
-        if not results:
+        if not matches:
             send("❌ Sklabiná sa nenašla")
         else:
-            msg = "⚽ Sklabiná report\n\n" + "\n\n".join(results[:2])
+            msg = "⚽ Sklabiná report\n\n" + "\n\n".join(matches[:2])
             send(msg)
 
         await browser.close()
